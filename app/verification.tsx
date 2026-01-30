@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import { View, Text, StyleSheet, ScrollView, Alert, Dimensions, Platform } from "react-native";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import { View, Text, StyleSheet, ScrollView, Alert, Dimensions, Platform, ActivityIndicator, Modal, InteractionManager } from "react-native";
 import { useRouter } from "expo-router";
 import { LogOut } from "lucide-react-native";
 import { useAuth } from "@/state/authContext";
@@ -21,6 +21,7 @@ export default function LiveVerificationScreen() {
     maskDetected: true,
     lightingScore: 0.3,
     faceCentered: false,
+    faceBounds: null,
   });
 
   // HARDCODED: Auto-detect dummy face after 1 second to approve all checklist items
@@ -88,57 +89,71 @@ export default function LiveVerificationScreen() {
     // No spam of failure messages
   };
 
-  // Show all checklist items as successful (green checkmarks) when face is detected
-  // HARDCODED: All items approved when dummy face is detected
-  const checklistItems: ChecklistItem[] = [
-    { label: "Remove hat", status: !detectionStatus.hatDetected }, // Approved when no hat
-    { label: "Remove sunglasses", status: !detectionStatus.sunglassesDetected }, // Approved when no sunglasses
-    { label: "Remove mask", status: !detectionStatus.maskDetected }, // Approved when no mask
-    { label: "Good lighting", status: detectionStatus.lightingScore > 0.7 }, // Approved when good lighting
-    { label: "Face centered", status: detectionStatus.faceCentered }, // Approved when face centered
-  ];
+  // Memoize checklist to avoid unnecessary re-renders
+  const checklistItems: ChecklistItem[] = useMemo(
+    () => [
+      { label: "Remove hat", status: !detectionStatus.hatDetected },
+      { label: "Remove sunglasses", status: !detectionStatus.sunglassesDetected },
+      { label: "Remove mask", status: !detectionStatus.maskDetected },
+      { label: "Good lighting", status: detectionStatus.lightingScore > 0.7 },
+      { label: "Face centered", status: detectionStatus.faceCentered },
+    ],
+    [
+      detectionStatus.hatDetected,
+      detectionStatus.sunglassesDetected,
+      detectionStatus.maskDetected,
+      detectionStatus.lightingScore,
+      detectionStatus.faceCentered,
+    ]
+  );
 
   // All checklist items approved when face is detected
   const isVerificationReady = detectionStatus.faceDetected;
   const allChecklistApproved = checklistItems.every(item => item.status === true);
 
-  // HARDCODED: Auto-navigate when dummy face is detected AND all checklist items are approved
+  // Auto-navigate when face is detected and all checklist items approved
+  const navTaskRef = useRef<{ cancel: () => void } | null>(null);
   useEffect(() => {
-    if (isVerificationReady && allChecklistApproved && !hasNavigatedRef.current && !loading) {
-      // Small delay to show checklist success, then auto-navigate
-      const timer = setTimeout(async () => {
+    if (!isVerificationReady || !allChecklistApproved || hasNavigatedRef.current || loading) return;
+
+    const timer = setTimeout(() => {
+      navTaskRef.current = InteractionManager.runAfterInteractions(() => {
         if (!hasNavigatedRef.current && isVerificationReady && allChecklistApproved) {
-          try {
-            hasNavigatedRef.current = true;
-            setLoading(true);
-            await completeVerification();
-            setLoading(false);
-            // Safe navigation with error handling
-            try {
-              router.replace("/verification-success");
-            } catch (navError) {
-              console.error("Navigation error:", navError);
-              // Fallback navigation
-              router.push("/verification-success");
-            }
-          } catch (error) {
-            console.error("Verification error:", error);
-            hasNavigatedRef.current = false;
-            setLoading(false);
-            // Don't show alert in Expo Go to avoid blocking
-            if (__DEV__) {
-              console.warn("Failed to complete verification:", error);
-            }
-          }
+          hasNavigatedRef.current = true;
+          setLoading(true);
+          completeVerification()
+            .then(() => {
+              setLoading(false);
+              try {
+                router.replace("/verification-success");
+              } catch (navError) {
+                if (__DEV__) console.error("Navigation error:", navError);
+                router.push("/verification-success");
+              }
+            })
+            .catch((error) => {
+              hasNavigatedRef.current = false;
+              setLoading(false);
+              if (__DEV__) console.warn("Failed to complete verification:", error);
+            });
         }
-      }, 2000); // 2 second delay to show all checklist items approved
-      
-      return () => clearTimeout(timer);
-    }
+      });
+    }, 2000);
+
+    return () => {
+      clearTimeout(timer);
+      if (navTaskRef.current?.cancel) navTaskRef.current.cancel();
+    };
   }, [isVerificationReady, allChecklistApproved, loading, completeVerification, router]);
 
   return (
     <View style={styles.container}>
+      <Modal visible={loading} transparent animationType="fade">
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color={Colors.primary[650]} />
+          <Text style={styles.loadingText}>Completing verification...</Text>
+        </View>
+      </Modal>
       <Header 
         title="Live Verification"
         subtitle="Verify your identity"
@@ -243,5 +258,17 @@ const styles = StyleSheet.create({
     marginBottom: isMobile ? Spacing.md : isSmallScreen ? Spacing.lg : Spacing['2xl'], // Tighter spacing on mobile
     width: '100%',
     alignItems: 'center', // Center checklist
+  },
+  loadingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: Spacing.md,
+    fontSize: Typography.fontSize.md,
+    color: Colors.white,
+    fontWeight: Typography.fontWeight.medium,
   },
 });

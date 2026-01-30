@@ -33,7 +33,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "app.rork.mobile_ui_clone_project",
+      "package": "com.anonymous.expoapp",
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
@@ -42,14 +42,18 @@
         "android.permission.VIBRATE",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION"
+        "ACCESS_BACKGROUND_LOCATION",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.INTERNET"
       ],
       "compileSdkVersion": 34,
       "targetSdkVersion": 34,
       "buildToolsVersion": "34.0.0",
-      "minSdkVersion": 24,
+      "minSdkVersion": 26,
       "usesCleartextTraffic": false,
-      "blockedPermissions": []
+      "blockedPermissions": [],
+      "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
       "favicon": "./assets/images/favicon.png",
@@ -99,14 +103,6 @@
         "expo-local-authentication",
         {
           "faceIDPermission": "Allow $(PRODUCT_NAME) to use Face ID for secure authentication"
-        }
-      ],
-      [
-        "react-native-vision-camera",
-        {
-          "cameraPermissionText": "$(PRODUCT_NAME) needs access to your Camera for live face verification.",
-          "enableMicrophonePermission": false,
-          "enableCodeScanner": false
         }
       ],
       [

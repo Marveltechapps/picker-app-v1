@@ -1,7 +1,11 @@
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+
+// Local types matching expo-notifications (no import = no Metro graph edge to expo-notifications from this file)
+export type PermissionStatus = 'granted' | 'denied' | 'undetermined';
+export type NotificationLike = { request: { content: { title?: string; body?: string } }; date: number };
+export type NotificationResponseLike = { notification: NotificationLike; actionIdentifier: string };
 
 // Check if expo-device is available
 let Device: typeof import('expo-device') | null = null;
@@ -14,26 +18,28 @@ try {
 const STORAGE_KEY_PUSH_TOKEN = '@auth/push_token';
 
 // Check if running in Expo Go (push notifications not supported in Expo Go SDK 53+)
-// More accurate detection: Expo Go has executionEnvironment === 'storeClient'
-// Development builds have executionEnvironment === 'standalone' or 'bare'
-const isExpoGo = Constants.executionEnvironment === 'storeClient';
+const isExpoGo =
+  typeof Constants !== 'undefined' &&
+  Constants?.executionEnvironment === 'storeClient';
 
-// Configure notification behavior (skip in Expo Go)
-// This must be set before any notification operations
-if (!isExpoGo && Platform.OS !== 'web') {
+// Lazy-load expo-notifications so Expo Go never loads it (avoids "removed from Expo Go" error at import time)
+let NotificationsModule: any = null;
+function getNotifications(): any {
+  if (Platform.OS === 'web' || isExpoGo) return null;
+  if (NotificationsModule) return NotificationsModule;
   try {
-    Notifications.setNotificationHandler({
+    NotificationsModule = require('expo-notifications');
+    NotificationsModule.setNotificationHandler({
       handleNotification: async () => ({
         shouldShowAlert: true,
         shouldPlaySound: true,
         shouldSetBadge: true,
       }),
     });
-  } catch (error) {
-    // Log error but don't throw - app should still work
-    if (__DEV__) {
-      console.warn('Notification handler setup failed:', error);
-    }
+    return NotificationsModule;
+  } catch (e) {
+    if (__DEV__) console.warn('Notification handler setup failed:', e);
+    return null;
   }
 }
 
@@ -56,6 +62,9 @@ export async function requestNotificationPermissions(): Promise<boolean> {
     }
 
     if (isExpoGo) return false;
+
+    const Notifications = getNotifications();
+    if (!Notifications) return false;
 
     // Check if running on a physical device
     if (Device) {
@@ -103,12 +112,14 @@ export async function requestNotificationPermissions(): Promise<boolean> {
 /**
  * Get current notification permission status
  */
-export async function getNotificationPermissionStatus(): Promise<Notifications.PermissionStatus> {
+export async function getNotificationPermissionStatus(): Promise<PermissionStatus> {
   try {
     // Not supported in Expo Go (SDK 53+)
     if (isExpoGo) {
       return 'undetermined';
     }
+    const Notifications = getNotifications();
+    if (!Notifications) return 'undetermined';
     const { status } = await Notifications.getPermissionsAsync();
     return status;
   } catch (error) {
@@ -185,6 +196,8 @@ export async function registerForPushNotifications(): Promise<string | null> {
     }
 
     // Register for push notifications
+    const Notifications = getNotifications();
+    if (!Notifications) return null;
     const tokenData = await Notifications.getExpoPushTokenAsync(
       projectId ? { projectId } : undefined
     );
@@ -307,8 +320,8 @@ export async function sendTokenToBackend(token: string, userId?: string): Promis
  * Note: Push notifications are not supported on web
  */
 export function setupNotificationListeners(
-  onNotificationReceived?: (notification: Notifications.Notification) => void,
-  onNotificationTapped?: (response: Notifications.NotificationResponse) => void
+  onNotificationReceived?: (notification: NotificationLike) => void,
+  onNotificationTapped?: (response: NotificationResponseLike) => void
 ): () => void {
   // Push notifications are not supported on web
   if (Platform.OS === 'web') {
@@ -318,6 +331,9 @@ export function setupNotificationListeners(
   }
 
   if (isExpoGo) return () => {};
+
+  const Notifications = getNotifications();
+  if (!Notifications) return () => {};
 
   try {
     // Listener for notifications received while app is foregrounded
@@ -357,7 +373,7 @@ export function setupNotificationListeners(
  * Get last notification response (when app opened from notification)
  * Note: Not available on web
  */
-export async function getLastNotificationResponse(): Promise<Notifications.NotificationResponse | null> {
+export async function getLastNotificationResponse(): Promise<NotificationResponseLike | null> {
   // Not available on web
   if (Platform.OS === 'web') {
     return null;
@@ -367,6 +383,9 @@ export async function getLastNotificationResponse(): Promise<Notifications.Notif
   if (isExpoGo) {
     return null;
   }
+
+  const Notifications = getNotifications();
+  if (!Notifications) return null;
 
   try {
     return await Notifications.getLastNotificationResponseAsync();
@@ -381,9 +400,10 @@ export async function getLastNotificationResponse(): Promise<Notifications.Notif
  */
 export async function setBadgeCount(count: number): Promise<void> {
   try {
-    if (Platform.OS === 'ios') {
-      await Notifications.setBadgeCountAsync(count);
-    }
+    if (Platform.OS !== 'ios') return;
+    const Notifications = getNotifications();
+    if (!Notifications) return;
+    await Notifications.setBadgeCountAsync(count);
   } catch (error) {
     console.error('Error setting badge count:', error);
   }
@@ -394,6 +414,8 @@ export async function setBadgeCount(count: number): Promise<void> {
  */
 export async function clearAllNotifications(): Promise<void> {
   try {
+    const Notifications = getNotifications();
+    if (!Notifications) return;
     await Notifications.dismissAllNotificationsAsync();
   } catch (error) {
     console.error('Error clearing notifications:', error);
@@ -417,6 +439,9 @@ export async function sendTestNotification(title: string = 'Test Notification', 
       console.warn('Cannot send test notification: permissions not granted');
       return null;
     }
+
+    const Notifications = getNotifications();
+    if (!Notifications) return null;
 
     const notificationId = await Notifications.scheduleNotificationAsync({
       content: {

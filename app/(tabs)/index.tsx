@@ -299,6 +299,12 @@ export default function HomeScreen() {
       flexDirection: "row",
       alignItems: "center",
       gap: Spacing.sm,
+      flex: 1,
+      minWidth: 0,
+    },
+    statusItemContent: {
+      flex: 1,
+      minWidth: 0,
     },
     statusLabel: {
       fontSize: Typography.fontSize.sm,
@@ -314,6 +320,7 @@ export default function HomeScreen() {
       fontSize: Typography.fontSize.md,
       fontWeight: Typography.fontWeight.bold,
       color: colors.success[400],
+      flexShrink: 1,
     },
     divider: {
       height: 1,
@@ -757,14 +764,14 @@ export default function HomeScreen() {
           <View style={styles.statusRow}>
             <View style={styles.statusItem}>
               <Target color="#10B981" size={18} strokeWidth={2} />
-              <View>
+              <View style={styles.statusItemContent}>
                 <Text style={styles.statusLabel}>Accuracy</Text>
                 <Text style={styles.statusValue}>{getAccuracyDisplay()}</Text>
               </View>
             </View>
             <View style={styles.statusItem}>
               <MapPin color="#6366F1" size={18} strokeWidth={2} />
-              <View>
+              <View style={styles.statusItemContent}>
                 <Text style={styles.statusLabel}>Status</Text>
                 <Text style={styles.statusValueGreen}>
                   {currentLocation ? getFormattedAddress() : 'Locating...'}

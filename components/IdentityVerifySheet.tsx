@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { View, Text, StyleSheet, Pressable, Platform, ActivityIndicator, InteractionManager } from "react-native";
+import { View, Text, StyleSheet, Pressable, Platform, ActivityIndicator } from "react-native";
 import BottomSheetModal from "./BottomSheetModal";
 import { Camera, Fingerprint, Shield, ChevronRight } from "lucide-react-native";
 
@@ -19,9 +19,8 @@ export default function IdentityVerifySheet({ visible, onSelectMethod, onClose, 
       if (isSelecting) return;
       setIsSelecting(true);
       setSelectedMethod(method);
-      // Immediate UI feedback; defer sheet transition so UI thread stays responsive
-      InteractionManager.runAfterInteractions(() => {
-        onSelectMethod(method);
+      onSelectMethod(method);
+      requestAnimationFrame(() => {
         setIsSelecting(false);
       });
     },

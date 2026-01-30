@@ -83,23 +83,19 @@ export default function FingerprintVerifySheet({ visible, onSuccess, onClose, on
     }
   }, [isAuthenticating, scaleAnim]);
 
-  // Auto-trigger after sheet animation and availability check; avoids blocking UI
+  // Auto-trigger immediately after sheet is ready (no delay for instant response)
   useEffect(() => {
     if (!visible || !isAvailable || verified || isAuthenticating || hasAutoTriggered || isChecking) {
       return;
     }
     let cancelled = false;
     const task = InteractionManager.runAfterInteractions(() => {
-      const timer = setTimeout(async () => {
+      const timer = setTimeout(() => {
         if (cancelled) return;
-        try {
-          setError(null);
-          setHasAutoTriggered(true);
-          await authenticate();
-        } catch (err) {
-          console.error('[FingerprintVerifySheet] Auto-trigger error:', err);
-        }
-      }, 150);
+        setError(null);
+        setHasAutoTriggered(true);
+        authenticate().catch(() => {});
+      }, 0);
       return () => clearTimeout(timer);
     });
     return () => {
@@ -127,7 +123,7 @@ export default function FingerprintVerifySheet({ visible, onSuccess, onClose, on
     }
   }, [visible, isAvailable, biometricType]);
 
-  const handleScan = async () => {
+  const handleScan = () => {
     if (!isAvailable) {
       Alert.alert(
         "Fingerprint Not Available",
@@ -135,9 +131,9 @@ export default function FingerprintVerifySheet({ visible, onSuccess, onClose, on
       );
       return;
     }
-
     setError(null);
-    await authenticate();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    authenticate();
   };
 
   return (

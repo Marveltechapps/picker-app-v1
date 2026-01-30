@@ -7,22 +7,17 @@ export default function SplashScreen() {
   const router = useRouter();
 
   useEffect(() => {
-    // Hide native splash screen when custom splash screen mounts
     const hideNativeSplash = async () => {
       try {
         await ExpoSplashScreen.hideAsync();
-      } catch (err) {
-        if (__DEV__) {
-          console.error("Error hiding native splash:", err);
-        }
-      }
+      } catch (_) {}
     };
     hideNativeSplash();
 
-    // Show splash for 2.5 seconds, then navigate to permissions
-    // The permissions screen will handle the rest of the flow
     const timer = setTimeout(() => {
-      router.replace("/permissions");
+      try {
+        router.replace("/permissions");
+      } catch (_) {}
     }, 2500);
 
     return () => clearTimeout(timer);

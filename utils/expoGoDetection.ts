@@ -23,21 +23,29 @@ export function isExpoGo(): boolean {
     return false;
   }
 
-  // Check execution environment
-  // 'storeClient' = Expo Go
-  // 'standalone' = Development build or production build
-  // 'bare' = Bare React Native
-  if (Constants.executionEnvironment === 'storeClient') {
-    return true;
-  }
+  try {
+    // Safe for standalone APK: Constants may be undefined or not yet ready in standalone
+    if (typeof Constants === 'undefined') {
+      return false;
+    }
 
-  // Legacy check for older Expo SDK versions
-  // appOwnership === 'expo' means Expo Go
-  if (Constants.appOwnership === 'expo') {
-    // Additional check: if manifest exists but no developer field, it's Expo Go
-    if (Constants.manifest && !(Constants.manifest as any).developer) {
+    // Check execution environment
+    // 'storeClient' = Expo Go
+    // 'standalone' = Development build or production build (APK)
+    // 'bare' = Bare React Native
+    if (Constants.executionEnvironment === 'storeClient') {
       return true;
     }
+
+    // Legacy check for older Expo SDK versions
+    if (Constants.appOwnership === 'expo') {
+      if (Constants.manifest && !(Constants.manifest as any).developer) {
+        return true;
+      }
+    }
+  } catch {
+    // In standalone APK, Constants may not be ready at first access; treat as non–Expo Go
+    return false;
   }
 
   return false;

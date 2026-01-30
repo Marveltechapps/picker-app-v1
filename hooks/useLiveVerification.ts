@@ -61,6 +61,7 @@ export function useLiveVerification(options: UseLiveVerificationOptions = {}): U
     maskDetected: false,
     lightingScore: 0.3,
     faceCentered: false,
+    faceBounds: null,
   });
   const [isVerified, setIsVerified] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -205,6 +206,7 @@ export function useLiveVerification(options: UseLiveVerificationOptions = {}): U
       maskDetected: false,
       lightingScore: 0.3,
       faceCentered: false,
+      faceBounds: null,
     });
   }, []);
 

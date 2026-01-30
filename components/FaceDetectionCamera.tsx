@@ -97,6 +97,15 @@ export default function FaceDetectionCamera({
     );
   }
 
+  // Safe face detector settings (undefined in release if enums stripped - no crash)
+  const faceDetectorSettings = (() => {
+    try {
+      return getFaceDetectorSettings() ?? undefined;
+    } catch {
+      return undefined;
+    }
+  })();
+
   // Render real-time camera with face detection (same as Face Recognition)
   return (
     <View style={styles.container}>
@@ -105,7 +114,7 @@ export default function FaceDetectionCamera({
         style={styles.camera}
         facing={FRONT_CAMERA}
         onFacesDetected={handleFacesDetected}
-        faceDetectorSettings={getFaceDetectorSettings()}
+        faceDetectorSettings={faceDetectorSettings}
       />
       <Animated.View style={[styles.ovalOverlay, { transform: [{ scale: pulseAnim }] }]}>
         <View style={styles.ovalBorder} />

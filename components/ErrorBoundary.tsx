@@ -1,5 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
 import { Colors, Typography, Spacing } from '@/constants/theme';
 
 interface Props {
@@ -67,9 +67,13 @@ export class ErrorBoundary extends Component<Props, State> {
                   </Text>
                 </View>
               )}
-              <TouchableOpacity style={styles.button} onPress={this.handleReset}>
+              <Pressable
+                style={({ pressed }) => [styles.button, pressed && { opacity: 0.8 }]}
+                onPress={this.handleReset}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
                 <Text style={styles.buttonText}>Try Again</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
           </ScrollView>
         </View>

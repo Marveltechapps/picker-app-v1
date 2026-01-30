@@ -1,13 +1,12 @@
-import React, { useState, useCallback, useRef } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Platform, Alert, ActionSheetIOS, Modal, Dimensions, useWindowDimensions, AccessibilityInfo, ScrollView } from "react-native";
+import React, { useState, useCallback, useRef, useMemo } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Platform, Alert, ActionSheetIOS, Modal, useWindowDimensions, AccessibilityInfo, ScrollView } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Camera, Check, X, Edit2, RotateCw } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import CircularImageCrop from "./CircularImageCrop";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { isValidImageUri, getSafeImageSource } from "@/utils/imageUriValidator";
 
-const { width: SCREEN_WIDTH_INITIAL } = Dimensions.get("window");
-const isSmallScreenInitial = SCREEN_WIDTH_INITIAL < 400;
 const isMobile = Platform.OS !== "web";
 
 // Constants
@@ -34,6 +33,7 @@ export default function ProfileAvatarUploader({
 }: ProfileAvatarUploaderProps) {
   const { width: windowWidth } = useWindowDimensions();
   const isSmallScreen = windowWidth < 400;
+  const styles = useMemo(() => createStyles(windowWidth, isSmallScreen), [windowWidth, isSmallScreen]);
 
   const [uploading, setUploading] = useState<boolean>(false);
   const [uploadSuccess, setUploadSuccess] = useState<boolean>(false);
@@ -96,16 +96,27 @@ export default function ProfileAvatarUploader({
         allowsEditing: false, // We'll use custom circular crop
         quality: IMAGE_QUALITY,
         exif: false,
+        mediaTypes: ['images'],
       };
 
-      const result = useCamera
-        ? await ImagePicker.launchCameraAsync(pickerOptions)
-        : await ImagePicker.launchImageLibraryAsync({
-            ...pickerOptions,
-            mediaTypes: ImagePicker.MediaType?.Images || ImagePicker.MediaTypeOptions?.Images || 'images',
-          });
+      let result: ImagePicker.ImagePickerResult;
+      try {
+        result = useCamera
+          ? await ImagePicker.launchCameraAsync(pickerOptions)
+          : await ImagePicker.launchImageLibraryAsync(pickerOptions);
+      } catch (pickerError: unknown) {
+        const msg = pickerError instanceof Error ? pickerError.message : 'Failed to open photo picker';
+        if (__DEV__) console.error('Error picking image:', pickerError);
+        Alert.alert(
+          'Photo Picker Error',
+          'Could not open photos. Try again or use the camera instead.',
+          [{ text: 'OK' }]
+        );
+        setUploading(false);
+        return;
+      }
 
-      if (!result.canceled && result.assets[0]) {
+      if (!result.canceled && result.assets?.[0]) {
         const asset = result.assets[0];
         const uri = asset.uri;
         
@@ -384,14 +395,16 @@ export default function ProfileAvatarUploader({
         onRequestClose={handleCancelCrop}
         statusBarTranslucent
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.previewContainer}>
-            <ScrollView
-              style={styles.previewScrollView}
-              contentContainerStyle={styles.previewScrollContent}
-              showsVerticalScrollIndicator={true}
-              keyboardShouldPersistTaps="handled"
-            >
+        <SafeAreaView style={styles.modalSafeArea} edges={["top", "bottom"]}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContentWrapper}>
+              <View style={styles.previewContainer}>
+                <ScrollView
+                  style={styles.previewScrollView}
+                  contentContainerStyle={styles.previewScrollContent}
+                  showsVerticalScrollIndicator={true}
+                  keyboardShouldPersistTaps="handled"
+                >
               {/* Header */}
               <View style={styles.previewHeader}>
                 <View style={styles.previewHeaderContent}>
@@ -478,15 +491,19 @@ export default function ProfileAvatarUploader({
                 </TouchableOpacity>
               </View>
             </ScrollView>
+              </View>
+            </View>
           </View>
-        </View>
+        </SafeAreaView>
       </Modal>
     </View>
   );
 }
 
-// Create responsive styles based on screen width
-const createStyles = () => {
+// Create responsive styles based on current window dimensions
+const createStyles = (windowWidth: number, isSmallScreen: boolean) => {
+  const maxContentWidth = Math.min(windowWidth - (isSmallScreen ? 20 : 40), 420);
+  const previewImageSize = Math.min(windowWidth - (isSmallScreen ? 80 : 120), 320);
   return StyleSheet.create({
   container: {
     alignItems: "center",
@@ -597,21 +614,32 @@ const createStyles = () => {
       MozOsxFontSmoothing: 'grayscale' as any,
     } : {}),
   },
+  modalSafeArea: {
+    flex: 1,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.75)",
     justifyContent: "center",
     alignItems: "center",
-    padding: isSmallScreenInitial ? Spacing.md : Spacing.xl,
+    padding: isSmallScreen ? Spacing.md : Spacing.xl,
+  },
+  modalContentWrapper: {
+    flex: 1,
+    width: "100%",
+    maxHeight: "100%",
+    justifyContent: "center",
+    alignItems: "center",
   },
   previewContainer: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius['2xl'],
     width: "100%",
-    maxWidth: Math.min(SCREEN_WIDTH_INITIAL - (isSmallScreenInitial ? 20 : 40), 420),
+    maxWidth: maxContentWidth,
     padding: 0,
     overflow: "hidden",
-    maxHeight: isSmallScreenInitial ? "90%" : undefined,
+    maxHeight: "90%",
+    flex: 1,
     ...Shadows.xl,
   },
   previewHeader: {
@@ -619,8 +647,8 @@ const createStyles = () => {
     justifyContent: "space-between",
     alignItems: "flex-start",
     width: "100%",
-    padding: isSmallScreenInitial ? Spacing.lg : Spacing['2xl'],
-    paddingBottom: isSmallScreenInitial ? Spacing.md : Spacing.xl,
+    padding: isSmallScreen ? Spacing.lg : Spacing['2xl'],
+    paddingBottom: isSmallScreen ? Spacing.md : Spacing.xl,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border.light,
   },
@@ -629,7 +657,7 @@ const createStyles = () => {
     marginRight: Spacing.md,
   },
   previewTitle: {
-    fontSize: isSmallScreenInitial ? Typography.fontSize.xl : Typography.fontSize['2xl'],
+    fontSize: isSmallScreen ? Typography.fontSize.xl : Typography.fontSize['2xl'],
     fontWeight: Platform.OS === 'web' ? 700 : Typography.fontWeight.bold, // Use number for web
     color: Colors.text.primary,
     marginBottom: Spacing.xs,
@@ -644,7 +672,7 @@ const createStyles = () => {
     } : {}),
   },
   previewSubtitle: {
-    fontSize: isSmallScreenInitial ? Typography.fontSize.sm : Typography.fontSize.md,
+    fontSize: isSmallScreen ? Typography.fontSize.sm : Typography.fontSize.md,
     fontWeight: Platform.OS === 'web' ? 400 : Typography.fontWeight.regular, // Use number for web
     color: Colors.text.secondary,
     marginTop: Spacing.xs,
@@ -666,20 +694,20 @@ const createStyles = () => {
     backgroundColor: Colors.gray[50],
   },
   previewImageWrapper: {
-    padding: isSmallScreenInitial ? Spacing.lg : Spacing['2xl'],
+    padding: isSmallScreen ? Spacing.lg : Spacing['2xl'],
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: Colors.gray[50],
   },
   previewImageContainer: {
-    width: Math.min(SCREEN_WIDTH_INITIAL - (isSmallScreenInitial ? 80 : 120), 320),
-    height: Math.min(SCREEN_WIDTH_INITIAL - (isSmallScreenInitial ? 80 : 120), 320),
-    borderRadius: Math.min(SCREEN_WIDTH_INITIAL - (isSmallScreenInitial ? 80 : 120), 320) / 2,
+    width: previewImageSize,
+    height: previewImageSize,
+    borderRadius: previewImageSize / 2,
     overflow: "hidden",
     backgroundColor: Colors.gray[100],
     ...Shadows.lg,
     position: "relative",
-    borderWidth: isSmallScreenInitial ? 3 : 4,
+    borderWidth: isSmallScreen ? 3 : 4,
     borderColor: Colors.white,
   },
   previewImage: {
@@ -695,7 +723,7 @@ const createStyles = () => {
     backgroundColor: "rgba(255, 255, 255, 0.95)",
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: Math.min(SCREEN_WIDTH_INITIAL - 120, 320) / 2,
+    borderRadius: previewImageSize / 2,
   },
   uploadingText: {
     marginTop: Spacing.md,
@@ -715,8 +743,8 @@ const createStyles = () => {
     flexDirection: "row",
     flexWrap: "wrap",
     width: "100%",
-    paddingHorizontal: isSmallScreenInitial ? Spacing.lg : Spacing['2xl'],
-    paddingVertical: isSmallScreenInitial ? Spacing.lg : Spacing.xl,
+    paddingHorizontal: isSmallScreen ? Spacing.lg : Spacing['2xl'],
+    paddingVertical: isSmallScreen ? Spacing.lg : Spacing.xl,
     gap: Spacing.md,
     alignItems: "stretch",
     justifyContent: "center",
@@ -793,11 +821,12 @@ const createStyles = () => {
   },
   previewScrollView: {
     flex: 1,
+    minHeight: 0,
     maxHeight: "100%",
   },
   previewScrollContent: {
     flexGrow: 1,
-    paddingBottom: isSmallScreenInitial ? Spacing.xl : Spacing["2xl"],
+    paddingBottom: isSmallScreen ? Spacing.xl : Spacing["2xl"],
   },
   setProfileImageButton: {
     flexDirection: "row",
@@ -863,5 +892,3 @@ const createStyles = () => {
   },
   });
 };
-
-const styles = createStyles();

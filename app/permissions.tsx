@@ -87,8 +87,10 @@ export default function PermissionsRequiredScreen() {
       // For push notifications, actually request the permission
       if (selectedPermission === "pushNotifications") {
         // Check if running in Expo Go (push notifications not supported in Expo Go SDK 53+)
-        const isExpoGo = Constants.executionEnvironment === 'storeClient';
-        
+        const isExpoGo =
+          typeof Constants !== 'undefined' &&
+          Constants?.executionEnvironment === 'storeClient';
+
         // In Expo Go or web, mark as allowed to allow user to proceed
         if (Platform.OS === 'web' || isExpoGo) {
           await setPermission(selectedPermission, "allowed");

@@ -24,6 +24,23 @@
 -keep class expo.modules.facedetector.** { *; }
 -dontwarn expo.modules.facedetector.**
 
+# Expo Camera
+-keep class expo.modules.camera.** { *; }
+-dontwarn expo.modules.camera.**
+
+# Expo Image Picker (prevents "Failed to parse PhotoPicker result" in release APK)
+-keep class expo.modules.imagepicker.** { *; }
+-keepclassmembers class expo.modules.imagepicker.** { *; }
+-dontwarn expo.modules.imagepicker.**
+
+# AsyncStorage / React Native async storage
+-keep class com.reactnativecommunity.asyncstorage.** { *; }
+
+# Expo modules (constants, notifications, etc.) - prevent stripping in standalone APK
+-keep class expo.modules.** { *; }
+-keep class expo.modules.Constants.** { *; }
+-dontwarn expo.modules.**
+
 # Keep native methods
 -keepclasseswithmembernames class * {
     native <methods>;

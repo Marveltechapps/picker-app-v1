@@ -1,9 +1,9 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   View,
   StyleSheet,
   Image,
-  Dimensions,
+  useWindowDimensions,
   PanResponder,
   Animated,
   TouchableOpacity,
@@ -17,9 +17,7 @@ import * as ImageManipulator from "expo-image-manipulator";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/theme";
 import { isValidImageUri, getSafeImageSource } from "@/utils/imageUriValidator";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const CROP_SIZE = Math.min(SCREEN_WIDTH - 80, 320);
-const CROP_RADIUS = CROP_SIZE / 2;
+const getCropSize = (windowWidth: number) => Math.min(windowWidth - 80, 320);
 
 interface CircularImageCropProps {
   imageUri: string;
@@ -32,6 +30,11 @@ export default function CircularImageCrop({
   onCropComplete,
   onCancel,
 }: CircularImageCropProps) {
+  const { width: windowWidth } = useWindowDimensions();
+  const CROP_SIZE = useMemo(() => getCropSize(windowWidth), [windowWidth]);
+  const CROP_RADIUS = CROP_SIZE / 2;
+  const styles = useMemo(() => createStyles(CROP_SIZE, CROP_RADIUS), [CROP_SIZE, CROP_RADIUS]);
+
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const [isProcessing, setIsProcessing] = useState(false);
   
@@ -346,7 +349,8 @@ export default function CircularImageCrop({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (cropSize: number, cropRadius: number) =>
+  StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.gray[900],
@@ -355,16 +359,16 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing['3xl'],
   },
   cropArea: {
-    width: CROP_SIZE,
-    height: CROP_SIZE,
-    borderRadius: CROP_RADIUS,
+    width: cropSize,
+    height: cropSize,
+    borderRadius: cropRadius,
     overflow: "hidden",
-    position: "relative",
+    position: "relative" as const,
     backgroundColor: Colors.gray[800],
   },
   imageWrapper: {
-    width: CROP_SIZE,
-    height: CROP_SIZE,
+    width: cropSize,
+    height: cropSize,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -372,15 +376,15 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   overlayContainer: {
-    position: "absolute",
+    position: "absolute" as const,
     top: 0,
     left: 0,
-    width: CROP_SIZE,
-    height: CROP_SIZE,
+    width: cropSize,
+    height: cropSize,
     zIndex: 10,
   },
   svgOverlay: {
-    position: "absolute",
+    position: "absolute" as const,
     top: 0,
     left: 0,
   },

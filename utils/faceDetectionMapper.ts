@@ -41,6 +41,7 @@ export function mapFacesToDetectionStatus(
       maskDetected: false,
       lightingScore: 0.3,
       faceCentered: false,
+      faceBounds: null,
     };
   }
 
@@ -78,5 +79,6 @@ export function mapFacesToDetectionStatus(
     maskDetected: false,
     lightingScore: 0.85,
     faceCentered,
+    faceBounds: null,
   };
 }

@@ -81,22 +81,24 @@ class BiometricService {
   /**
    * Authenticate using biometrics
    * @param options - Authentication options
+   * @param options.skipHardwareCheck - When true, skip re-check (caller already verified); faster response.
    */
   async authenticate(options?: {
     promptMessage?: string;
     cancelLabel?: string;
     disableDeviceFallback?: boolean;
     fallbackLabel?: string;
+    skipHardwareCheck?: boolean;
   }): Promise<BiometricAuthResult> {
     try {
-      // First check hardware support
-      const hardwareCheck = await this.checkHardwareSupport();
-      
-      if (!hardwareCheck.available) {
-        return {
-          success: false,
-          error: hardwareCheck.error || 'Biometric authentication not available',
-        };
+      if (!options?.skipHardwareCheck) {
+        const hardwareCheck = await this.checkHardwareSupport();
+        if (!hardwareCheck.available) {
+          return {
+            success: false,
+            error: hardwareCheck.error || 'Biometric authentication not available',
+          };
+        }
       }
 
       // Configure authentication options

@@ -143,11 +143,11 @@ export function useBiometricAuth(options: UseBiometricAuthOptions = {}): UseBiom
         }
       }
 
-      // Perform authentication
       const result = await biometricService.authenticate({
         promptMessage,
         cancelLabel,
         disableDeviceFallback,
+        skipHardwareCheck: isAvailable,
       });
 
       if (mounted.current) {
@@ -204,9 +204,12 @@ export function useBiometricAuth(options: UseBiometricAuthOptions = {}): UseBiom
     setError(null);
   }, []);
 
-  // Check availability on mount
+  // Check availability after first paint so mount stays fast (Expo Go)
   useEffect(() => {
-    checkAvailability();
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => checkAvailability());
+    });
+    return () => cancelAnimationFrame(id);
   }, [checkAvailability]);
 
   // Handle app state changes

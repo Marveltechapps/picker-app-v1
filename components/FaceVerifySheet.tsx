@@ -7,6 +7,14 @@ import PrimaryButton from "./PrimaryButton";
 import { useFaceRecognition, getFaceDetectorSettings } from "@/hooks/useFaceRecognition";
 import * as Haptics from "expo-haptics";
 
+function safeFaceDetectorSettings(): object | undefined {
+  try {
+    return getFaceDetectorSettings() ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 // Safe import for CameraType - may not be available in Expo Go
 let CameraType: any = null;
 try {
@@ -21,6 +29,9 @@ try {
 
 // Fallback camera type constant
 const FRONT_CAMERA = CameraType?.front ?? 'front';
+
+const CAMERA_FRAME_WIDTH = 280;
+const CAMERA_FRAME_HEIGHT = 360;
 
 interface FaceVerifySheetProps {
   visible: boolean;
@@ -46,6 +57,7 @@ export default function FaceVerifySheet({ visible, onSuccess, onClose, onBack }:
     verify,
     reset,
   } = useFaceRecognition({
+    visible,
     onStatusChange: () => {},
     onVerified: () => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -66,29 +78,17 @@ export default function FaceVerifySheet({ visible, onSuccess, onClose, onBack }:
     }
   }, [isVerified, verified]);
 
-  // Request permission when sheet opens and ensure camera is active
   useEffect(() => {
     if (visible) {
-      // Always request camera permission when sheet opens
       if (!permission?.granted && permission?.canAskAgain !== false) {
-        requestPermission().catch((err) => {
-          // Error is managed by the hook internally
-          if (__DEV__) {
-            console.error('[FaceVerifySheet] Error requesting camera permission:', err);
-          }
-        });
+        requestPermission().catch(() => {});
       }
-      // Reset verification state when sheet opens to ensure fresh start
-      try {
-        reset();
-        setVerified(false);
-      } catch (err) {
-        if (__DEV__) {
-          console.error('[FaceVerifySheet] Error resetting state:', err);
-        }
-      }
+      reset();
+      setVerified(false);
     }
-  }, [visible, permission?.granted, permission?.canAskAgain, requestPermission, reset]);
+  // Only run when visibility toggles; avoid re-running on permission/reset ref changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
 
   // Reset when sheet closes
   useEffect(() => {
@@ -185,10 +185,23 @@ export default function FaceVerifySheet({ visible, onSuccess, onClose, onBack }:
                       style={styles.camera}
                       facing={FRONT_CAMERA}
                       onFacesDetected={handleFacesDetected}
-                      faceDetectorSettings={getFaceDetectorSettings()}
+                      faceDetectorSettings={safeFaceDetectorSettings()}
                       enableTorch={false}
                     />
                     <View style={styles.overlay} />
+                    {status.faceBounds && !verified && (
+                      <View
+                        style={[
+                          styles.faceBoundsOverlay,
+                          {
+                            left: status.faceBounds.x * CAMERA_FRAME_WIDTH,
+                            top: status.faceBounds.y * CAMERA_FRAME_HEIGHT,
+                            width: status.faceBounds.width * CAMERA_FRAME_WIDTH,
+                            height: status.faceBounds.height * CAMERA_FRAME_HEIGHT,
+                          },
+                        ]}
+                      />
+                    )}
                     {status.faceDetected && !isVerifying && !verified && (
                       <View style={styles.faceDetectedIndicator}>
                         <Text style={styles.faceDetectedText}>✓ Face Detected</Text>
@@ -209,48 +222,7 @@ export default function FaceVerifySheet({ visible, onSuccess, onClose, onBack }:
               ) : isVerifying ? (
                 <>
                   <Text style={styles.title}>Verifying...</Text>
-                  <Text style={styles.subtitle}>Please hold still</Text>
-                  <View style={styles.conditionsCard}>
-                    <View style={styles.conditionRow}>
-                      <Check 
-                        color={status.faceDetected ? "#10B981" : "#9CA3AF"} 
-                        size={20} 
-                        strokeWidth={2.5} 
-                      />
-                      <Text style={[
-                        styles.conditionText,
-                        !status.faceDetected && styles.conditionTextInactive
-                      ]}>
-                        Face detected
-                      </Text>
-                    </View>
-                    <View style={styles.conditionRow}>
-                      <Check 
-                        color={status.lightingScore > 0.7 ? "#10B981" : "#9CA3AF"} 
-                        size={20} 
-                        strokeWidth={2.5} 
-                      />
-                      <Text style={[
-                        styles.conditionText,
-                        status.lightingScore <= 0.7 && styles.conditionTextInactive
-                      ]}>
-                        Good lighting
-                      </Text>
-                    </View>
-                    <View style={styles.conditionRow}>
-                      <Check 
-                        color={status.faceCentered ? "#10B981" : "#9CA3AF"} 
-                        size={20} 
-                        strokeWidth={2.5} 
-                      />
-                      <Text style={[
-                        styles.conditionText,
-                        !status.faceCentered && styles.conditionTextInactive
-                      ]}>
-                        Face centered
-                      </Text>
-                    </View>
-                  </View>
+                  <Text style={styles.subtitle}>Hold still — verification in progress</Text>
                 </>
               ) : (
                 <>
@@ -259,29 +231,12 @@ export default function FaceVerifySheet({ visible, onSuccess, onClose, onBack }:
                       <Text style={styles.errorText}>{error}</Text>
                     </View>
                   )}
-                  {!status.faceDetected && permission?.granted && (
+                  {permission?.granted && (
                     <>
-                      <Text style={styles.title}>Position Your Face</Text>
+                      <Text style={styles.title}>Identity verification</Text>
                       <Text style={styles.subtitle}>
-                        Look directly at the camera and ensure your face is clearly visible
+                        Tap Continue to proceed. This is a demo flow.
                       </Text>
-                      <View style={styles.conditionsCard}>
-                        <View style={styles.conditionRow}>
-                          <Text style={styles.conditionText}>
-                            {status.faceDetected ? "✓" : "○"} Face detected
-                          </Text>
-                        </View>
-                        <View style={styles.conditionRow}>
-                          <Text style={styles.conditionText}>
-                            {status.lightingScore > 0.7 ? "✓" : "○"} Good lighting
-                          </Text>
-                        </View>
-                        <View style={styles.conditionRow}>
-                          <Text style={styles.conditionText}>
-                            {status.faceCentered ? "✓" : "○"} Face centered
-                          </Text>
-                        </View>
-                      </View>
                     </>
                   )}
                 </>
@@ -303,15 +258,12 @@ export default function FaceVerifySheet({ visible, onSuccess, onClose, onBack }:
         ) : !isVerifying && !verified && permission?.granted && (
           <View style={styles.footer}>
             <PrimaryButton 
-              title={status.faceDetected ? "Verify Now" : "Position face in frame"} 
+              title="Continue" 
               onPress={verify}
-              disabled={!status.faceDetected}
             />
-            {!status.faceDetected && (
-              <Text style={styles.helpText}>
-                Make sure your face is clearly visible and well-lit
-              </Text>
-            )}
+            <Text style={styles.helpText}>
+              Demo: tap Continue or wait a moment to auto-proceed
+            </Text>
           </View>
         )}
       </View>
@@ -384,6 +336,14 @@ const styles = StyleSheet.create({
     borderRadius: 180,
     borderWidth: 4,
     borderColor: "transparent",
+    pointerEvents: "none",
+  },
+  faceBoundsOverlay: {
+    position: "absolute",
+    borderWidth: 3,
+    borderColor: "rgba(16, 185, 129, 0.9)",
+    borderRadius: 8,
+    backgroundColor: "transparent",
     pointerEvents: "none",
   },
   faceDetectedIndicator: {

@@ -33,18 +33,30 @@ export function mapVisionCameraFacesToStatus(
       hatDetected: false,
       sunglassesDetected: false,
       maskDetected: false,
-      lightingScore: 0.8, // Default value, not checked
-      faceCentered: true, // Default value, not checked
+      lightingScore: 0.8,
+      faceCentered: true,
+      faceBounds: null,
     };
   }
 
-  // SIMPLIFIED: Single face detected = success (no position/lighting checks)
+  const f = faces[0]!;
+  const faceBounds =
+    frameWidth > 0 && frameHeight > 0
+      ? {
+          x: f.bounds.x / frameWidth,
+          y: f.bounds.y / frameHeight,
+          width: f.bounds.width / frameWidth,
+          height: f.bounds.height / frameHeight,
+        }
+      : null;
+
   return {
     faceDetected: true,
-    hatDetected: false, // Not checked
-    sunglassesDetected: false, // Not checked
-    maskDetected: false, // Not checked
-    lightingScore: 0.8, // Default value, not checked
-    faceCentered: true, // Default value, not checked
+    hatDetected: false,
+    sunglassesDetected: false,
+    maskDetected: false,
+    lightingScore: 0.8,
+    faceCentered: true,
+    faceBounds,
   };
 }

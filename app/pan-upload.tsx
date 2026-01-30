@@ -29,14 +29,25 @@ export default function PanUploadScreen() {
         return;
       }
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaType?.Images || ImagePicker.MediaTypeOptions?.Images || 'images',
-        allowsEditing: true,
-        aspect: [16, 10],
-        quality: 0.9, // Higher quality for better clarity
-      });
+      let result;
+      try {
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'],
+          allowsEditing: true,
+          aspect: [16, 10],
+          quality: 0.9, // Higher quality for better clarity
+        });
+      } catch (pickerError: unknown) {
+        if (__DEV__) console.error('Error picking image:', pickerError);
+        Alert.alert(
+          "Photo Picker Error",
+          "Could not open photos. Try again or use the camera.",
+          [{ text: "OK" }]
+        );
+        return;
+      }
 
-      if (!result.canceled && result.assets[0]) {
+      if (!result.canceled && result.assets?.[0]) {
         const asset = result.assets[0];
         const uri = asset.uri;
         

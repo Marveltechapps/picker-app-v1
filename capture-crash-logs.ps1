@@ -16,8 +16,8 @@ if (-not ($devices -match "device$")) {
 Write-Host "✅ Device connected" -ForegroundColor Green
 Write-Host ""
 
-# Get package name from app.json
-$PACKAGE_NAME = "app.rork.mobile_ui_clone_project"
+# Android package from app.json (expo.android.package)
+$PACKAGE_NAME = "com.anonymous.expoapp"
 
 Write-Host "📦 Package: $PACKAGE_NAME" -ForegroundColor Cyan
 Write-Host ""

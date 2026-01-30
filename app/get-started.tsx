@@ -108,14 +108,14 @@ export default function GetStartedScreen() {
           <View style={styles.statusRow}>
             <View style={styles.statusItem}>
               <Target color="#10B981" size={18} strokeWidth={2} />
-              <View>
+              <View style={styles.statusItemContent}>
                 <Text style={styles.statusLabel}>Accuracy</Text>
                 <Text style={styles.statusValue}>{getAccuracyDisplay()}</Text>
               </View>
             </View>
             <View style={styles.statusItem}>
               <MapPin color="#6366F1" size={18} strokeWidth={2} />
-              <View>
+              <View style={styles.statusItemContent}>
                 <Text style={styles.statusLabel}>Status</Text>
                 <Text style={styles.statusValueGreen}>
                   {currentLocation ? getFormattedAddress() : 'Locating...'}
@@ -339,6 +339,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    flex: 1,
+    minWidth: 0,
+  },
+  statusItemContent: {
+    flex: 1,
+    minWidth: 0,
   },
   statusLabel: {
     fontSize: 12,
@@ -355,6 +361,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700" as const,
     color: "#10B981",
+    flexShrink: 1,
   },
   divider: {
     height: 1,

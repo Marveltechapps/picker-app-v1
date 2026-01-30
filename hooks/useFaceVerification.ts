@@ -76,6 +76,7 @@ const DEFAULT_STATUS: FaceDetectionStatus = {
   maskDetected: false,
   lightingScore: 0.3,
   faceCentered: false,
+  faceBounds: null,
 };
 
 function isStatusReady(s: FaceDetectionStatus): boolean {

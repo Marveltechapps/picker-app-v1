@@ -1,13 +1,12 @@
 /**
- * useFaceRecognition Hook
- *
- * Real-time face recognition using expo-camera.
- * Rule: if (faces.length > 0) → VERIFIED. No quality, lighting, or center checks.
+ * useFaceRecognition Hook — Expo Go simple verification.
+ * Camera active → verifySuccess() immediately. If faces.length > 0 → verifySuccess().
+ * No delay, no conditions, no retries, no failure messages.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { AppState, Platform, type AppStateStatus } from 'react-native';
+import { AppState, type AppStateStatus } from 'react-native';
 import faceRecognitionService, { type FaceFeature } from '@/services/faceRecognition.service';
 import type { FaceDetectionStatus } from '@/types/faceVerification';
 
@@ -15,6 +14,8 @@ export interface UseFaceRecognitionOptions {
   onStatusChange?: (status: FaceDetectionStatus) => void;
   onVerified?: () => void;
   onVerifyFailed?: (error: string) => void;
+  /** When false, auto-verify timer does not run (e.g. sheet closed). */
+  visible?: boolean;
   /** @deprecated Unused. Kept for API compat. */
   minQualityScore?: number;
   /** @deprecated Unused. Kept for API compat. */
@@ -32,12 +33,15 @@ export interface UseFaceRecognitionReturn {
   isVerified: boolean;
   error: string | null;
   handleFacesDetected: (result: { faces: FaceFeature[]; image?: { width: number; height: number } }) => void;
-  verify: () => Promise<void>;
+  verify: () => void;
   reset: () => void;
 }
 
+/** Dummy flow: camera ready → auto-verify after short delay so UI is visible first. */
+const CAMERA_READY_VERIFY_MS = 800;
+
 export function useFaceRecognition(options: UseFaceRecognitionOptions = {}): UseFaceRecognitionReturn {
-  const { onStatusChange, onVerified, onVerifyFailed } = options;
+  const { onStatusChange, onVerified, onVerifyFailed, visible = true } = options;
 
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
@@ -48,6 +52,7 @@ export function useFaceRecognition(options: UseFaceRecognitionOptions = {}): Use
     maskDetected: false,
     lightingScore: 0.3,
     faceCentered: false,
+    faceBounds: null,
   });
   const [isVerifying, setIsVerifying] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
@@ -55,10 +60,9 @@ export function useFaceRecognition(options: UseFaceRecognitionOptions = {}): Use
 
   const mounted = useRef(true);
   const verificationTriggered = useRef(false);
-  const dummyTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const lastFaceCountRef = useRef(0);
-  const lastFaceUpdateRef = useRef(0);
-  const FACE_UPDATE_THROTTLE_MS = 180;
+  const readyTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const stableFaceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const STABLE_MS = 600;
   const onStatusChangeRef = useRef(onStatusChange);
   const onVerifiedRef = useRef(onVerified);
   const onVerifyFailedRef = useRef(onVerifyFailed);
@@ -72,146 +76,117 @@ export function useFaceRecognition(options: UseFaceRecognitionOptions = {}): Use
   useEffect(() => {
     mounted.current = true;
     verificationTriggered.current = false;
-    lastFaceCountRef.current = 0;
     return () => {
       mounted.current = false;
-      // Cleanup dummy timer
-      if (dummyTimerRef.current) {
-        clearTimeout(dummyTimerRef.current);
-        dummyTimerRef.current = null;
+      if (readyTimerRef.current) {
+        clearTimeout(readyTimerRef.current);
+        readyTimerRef.current = null;
       }
     };
   }, []);
 
-  // Define triggerSuccess BEFORE the useEffect that uses it
   const triggerSuccess = useCallback(() => {
     if (!mounted.current || verificationTriggered.current) return;
     verificationTriggered.current = true;
+    if (readyTimerRef.current) {
+      clearTimeout(readyTimerRef.current);
+      readyTimerRef.current = null;
+    }
+    if (stableFaceTimerRef.current) {
+      clearTimeout(stableFaceTimerRef.current);
+      stableFaceTimerRef.current = null;
+    }
     setIsVerifying(true);
     setError(null);
-    // Clear dummy timer since verification succeeded
-    if (dummyTimerRef.current) {
-      clearTimeout(dummyTimerRef.current);
-      dummyTimerRef.current = null;
-    }
     const cb = onVerifiedRef.current;
     setTimeout(() => {
       if (!mounted.current) return;
       setIsVerifying(false);
       setIsVerified(true);
       if (cb) cb();
-    }, 150);
+    }, 0);
   }, []);
 
-  /**
-   * DUMMY VERIFICATION: Auto-trigger success after camera is active for 1.5 seconds
-   * This ensures verification always succeeds even if face detection fails
-   */
+  /** When face detection is OFF (web/Expo Go): camera ready → verify immediately. When ON: only verify on single-face stable. */
   useEffect(() => {
-    // Clear any existing timer
-    if (dummyTimerRef.current) {
-      clearTimeout(dummyTimerRef.current);
-      dummyTimerRef.current = null;
+    if (readyTimerRef.current) {
+      clearTimeout(readyTimerRef.current);
+      readyTimerRef.current = null;
     }
-
-    // Only start timer if:
-    // - Camera permission is granted
-    // - Not already verified
-    // - Not already triggered
-    // - Component is mounted
+    const faceDetectionOn = faceRecognitionService.isFaceDetectionAvailable();
     if (
+      !faceDetectionOn &&
+      visible &&
       permission?.granted &&
-      !isVerified &&
       !verificationTriggered.current &&
       mounted.current
     ) {
-      // Start dummy verification timer (1.5 seconds after camera becomes active)
-      dummyTimerRef.current = setTimeout(() => {
-        if (
-          mounted.current &&
-          !isVerified &&
-          !verificationTriggered.current &&
-          permission?.granted
-        ) {
+      readyTimerRef.current = setTimeout(() => {
+        if (mounted.current && !verificationTriggered.current && permission?.granted) {
           triggerSuccess();
         }
-      }, 1500); // 1.5 seconds delay
+      }, CAMERA_READY_VERIFY_MS);
     }
-
-    // Cleanup on unmount or when conditions change
     return () => {
-      if (dummyTimerRef.current) {
-        clearTimeout(dummyTimerRef.current);
-        dummyTimerRef.current = null;
+      if (readyTimerRef.current) {
+        clearTimeout(readyTimerRef.current);
+        readyTimerRef.current = null;
       }
     };
-  }, [permission?.granted, isVerified, triggerSuccess]);
+  }, [visible, permission?.granted, triggerSuccess]);
 
+  /** Single face detected and stable → verify. Update status (including faceBounds) every frame. */
   const handleFacesDetected = useCallback(
-    ({ faces, image }: { faces: FaceFeature[]; image?: { width: number; height: number } }) => {
-      if (!mounted.current || isVerified || verificationTriggered.current) return;
-      if (Platform.OS === 'web') return;
-      if (!faceRecognitionService.isFaceDetectionAvailable()) {
-        if (__DEV__) {
-          console.warn('[useFaceRecognition] Face detection not available');
-        }
-        return;
-      }
-
-      const now = Date.now();
-      if (now - lastFaceUpdateRef.current < FACE_UPDATE_THROTTLE_MS) {
-        if (faces.length > 0) {
-          lastFaceCountRef.current = faces.length;
-          if (!verificationTriggered.current) triggerSuccess();
-        }
-        return;
-      }
-      lastFaceUpdateRef.current = now;
-
-      if (__DEV__ && faces.length > 0) {
-        console.log(`[useFaceRecognition] Detected ${faces.length} face(s)`);
-      }
-
-      const imageWidth = image?.width ?? 720;
-      const imageHeight = image?.height ?? 1280;
-      const newStatus = faceRecognitionService.processFaceDetection(faces, imageWidth, imageHeight);
-
-      lastFaceCountRef.current = faces.length;
+    (result: { faces: FaceFeature[]; image?: { width: number; height: number } }) => {
+      const imageWidth = result.image?.width ?? 720;
+      const imageHeight = result.image?.height ?? 1280;
+      const newStatus = faceRecognitionService.processFaceDetection(
+        result.faces,
+        imageWidth,
+        imageHeight
+      );
       setStatus(newStatus);
       onStatusChangeRef.current?.(newStatus);
 
-      if (faces.length > 0) {
-        if (__DEV__) {
-          console.log('[useFaceRecognition] Face detected, triggering verification');
-        }
-        triggerSuccess();
+      if (stableFaceTimerRef.current) {
+        clearTimeout(stableFaceTimerRef.current);
+        stableFaceTimerRef.current = null;
+      }
+      if (
+        faceRecognitionService.shouldVerify(result.faces) &&
+        !verificationTriggered.current &&
+        mounted.current
+      ) {
+        stableFaceTimerRef.current = setTimeout(() => {
+          if (mounted.current && !verificationTriggered.current) {
+            stableFaceTimerRef.current = null;
+            triggerSuccess();
+          }
+        }, STABLE_MS);
       }
     },
-    [isVerified, triggerSuccess]
+    [triggerSuccess]
   );
 
-  const verify = useCallback(async () => {
-    // Manual verify button - if face was detected, trigger success
-    // No failure messages - just wait for face detection
+  /** Manual verify: always succeed (no conditions). */
+  const verify = useCallback(() => {
     if (isVerifying || isVerified || verificationTriggered.current) return;
-
-    if (lastFaceCountRef.current > 0) {
-      triggerSuccess();
-    }
-    // If no face detected yet, do nothing - auto-verify will trigger when face appears
+    triggerSuccess();
   }, [isVerifying, isVerified, triggerSuccess]);
 
   const reset = useCallback(() => {
+    verificationTriggered.current = false;
+    if (readyTimerRef.current) {
+      clearTimeout(readyTimerRef.current);
+      readyTimerRef.current = null;
+    }
+    if (stableFaceTimerRef.current) {
+      clearTimeout(stableFaceTimerRef.current);
+      stableFaceTimerRef.current = null;
+    }
     setIsVerified(false);
     setIsVerifying(false);
     setError(null);
-    verificationTriggered.current = false;
-    lastFaceCountRef.current = 0;
-    // Clear dummy timer on reset
-    if (dummyTimerRef.current) {
-      clearTimeout(dummyTimerRef.current);
-      dummyTimerRef.current = null;
-    }
     setStatus({
       faceDetected: false,
       hatDetected: false,
@@ -219,6 +194,7 @@ export function useFaceRecognition(options: UseFaceRecognitionOptions = {}): Use
       maskDetected: false,
       lightingScore: 0.3,
       faceCentered: false,
+      faceBounds: null,
     });
   }, []);
 
@@ -246,7 +222,4 @@ export function useFaceRecognition(options: UseFaceRecognitionOptions = {}): Use
   };
 }
 
-export const getFaceDetectorSettings = () => {
-  const s = faceRecognitionService.getFaceDetectorSettings();
-  return s ?? undefined;
-};
+export const getFaceDetectorSettings = () => faceRecognitionService.getFaceDetectorSettings();

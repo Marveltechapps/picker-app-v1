@@ -1,8 +1,10 @@
 # PowerShell script to run Expo app with Android emulator fallback
-# Usage: .\run-app.ps1 [android|web|ios]
+# Usage: .\run-app.ps1 [android|web|ios] [-ClearCache]
+# Use -ClearCache when you see Metro "Got unexpected undefined" error
 
 param(
-    [string]$Platform = "android"
+    [string]$Platform = "android",
+    [switch]$ClearCache
 )
 
 Write-Host "[*] Starting Expo App..." -ForegroundColor Cyan
@@ -69,7 +71,13 @@ function Start-AndroidEmulator {
 
 # Function to run Expo
 function Start-ExpoApp {
-    param([string]$Platform)
+    param([string]$Platform, [bool]$DoClearCache)
+    
+    $expoArgs = @()
+    if ($DoClearCache) {
+        $expoArgs += "--clear"
+        Write-Host "[*] Metro cache will be cleared (fixes 'Got unexpected undefined' HMR error)" -ForegroundColor Yellow
+    }
     
     Write-Host ""
     Write-Host "[*] Starting Expo with platform: $Platform" -ForegroundColor Cyan
@@ -78,32 +86,32 @@ function Start-ExpoApp {
         "android" {
             if (Test-AndroidEmulator) {
                 Write-Host "[OK] Running on Android emulator..." -ForegroundColor Green
-                npx expo start --android
+                npx expo start --android @expoArgs
             } else {
                 Write-Host "[!] Android emulator not detected. Attempting to start..." -ForegroundColor Yellow
                 if (Start-AndroidEmulator) {
                     Write-Host "[OK] Running on Android emulator..." -ForegroundColor Green
-                    npx expo start --android
+                    npx expo start --android @expoArgs
                 } else {
                     Write-Host "[ERROR] Failed to start Android emulator. Falling back to web..." -ForegroundColor Red
                     Write-Host "[*] Starting on web instead..." -ForegroundColor Yellow
-                    npx expo start --web
+                    npx expo start --web @expoArgs
                 }
             }
         }
         "web" {
             Write-Host "[OK] Running on web browser..." -ForegroundColor Green
-            npx expo start --web
+            npx expo start --web @expoArgs
         }
         "ios" {
             Write-Host "[OK] Running on iOS simulator..." -ForegroundColor Green
-            npx expo start --ios
+            npx expo start --ios @expoArgs
         }
         default {
             Write-Host "[ERROR] Unknown platform: $Platform" -ForegroundColor Red
             Write-Host "   Valid options: android, web, ios" -ForegroundColor Yellow
             Write-Host "   Falling back to web..." -ForegroundColor Yellow
-            npx expo start --web
+            npx expo start --web @expoArgs
         }
     }
 }
@@ -126,4 +134,4 @@ if (-not (Test-Path "node_modules")) {
 }
 
 # Start the app
-Start-ExpoApp -Platform $Platform
+Start-ExpoApp -Platform $Platform -DoClearCache $ClearCache
